@@ -1,51 +1,107 @@
-(define repl
+(define elan:repl
   (lambda ()
     (display "Elan test REPL")
-    (let loop ((env '((parent ()))))
+    (let loop ((lexical-env '((parent ())))
+               (applied-env '((parent ())))
       (display #\newline)
       (display #\newline)
       (display ">>> ")
       (let ((result (elan:eval (read) env)))
-        (display (car result))
-        (loop (cdr result))))))
+        (display (get-result-value result))
+        (loop (get-new-lexical-env result) (get-new-applied-env result)))))
+
+
+(define elan:eval
+  (lambda (expr lexical-env applied-env)
+    "Evaluator for a sub-set of Scheme."
+    (if (atom? expr)
+        (cond
+         ((literal? expr lexical-env applied-env)
+          (evaluation-result (literal->value expr lexical-env)
+                             lexical-env applied-env))
+         ((interned-symbol? expr lexical-env applied-env)
+          (resolve-value (symbol->variable expr) lexical-env applied-env))
+         (else (error "EVAL - could not evaluate atom")))
+        (let* ((application (car expr))
+               (args (cdr expr))
+               (special (special-form? application lexical-env applied-env))
+               (defined (defined-form? application lexical-env applied-env)))
+          (cond
+           ((value? special)
+            (apply-special-form special args lexical-env applied-env))
+           ((and (value? defined) (procedure? defined))
+            (apply-defined-form defined args lexical-env applied-env))
+           (else (error "EVAL  - could not evaluate list")))))))
+
+
+(define make-form
+  (lambda (name args-list named-args-list var-arg)
+    (list
+     (list 'name name)
+     (list 'base-arity (length args-list))
+     (list 'named-args named-args-list)
+     (list 'var-arg var-arg))))
+
+
+;;; utility functions used to shortcut frequently used idioms
+
+(define value?
+  (lambda (obj)
+    (not (null? obj))))
+
 
 (define atom?
   (lambda (expr)
-    (not
-     (or
-      (null? expr)
-      (pair? expr)))))
+    (not (pair? expr))))
+
 
 (define make-env
   (lambda (parent)
     (list 'parent parent)))
 
-(define (elan:eval expr env)
-  "Evaluator for a sub-set of Scheme."
-  (cond
-   ((atom? expr)
-    (cond ((self-evaluating? expr env)
-           (list expr env))
-          (else (error "EVAL - could not evaluate atom"))))
-   ((pair? expr)
-    (error "EVAL  - could not evaluate list"))
-   (else (error "EVAL  - could not evaluate expression"))))
+
+(define make-value-record
+  (lambda (name type value)
+    (cons name 
+    
+
+;;; abstract handlers for different kinds of
+;;; syntactics elements.
+;;; For now, these are just a placeholders for
+;;; functins which may need to be elaborated on later
+
+(define evaluation-result list)
+
+(define get-result-value car)
+
+(define get-new-env cdr)
+
+(define symbol->variable
+  (lambda (sym)
+    sym))      
+
+(define interned-symbol? symbol?)
+
+(define literal->value
+  (lambda (atom)
+    atom))
 
 
-(define self-evaluating?
+(define literal?
   (lambda (expr env)
     (or (number? expr)
         (string? expr)
         (char? expr))))
 
-(define id
+
+(define resolve-value
   (lambda (expr env)
-    (cond
-     (((assoc? expr env)
-       (assq env expr))
-      ((not (null? (assoc? 'parent env)))
-       (id expr (assq 'parent env)))
-      (else (error "EVAL - symbol has no bound value."))))))
+    (let ((value (assoc env expr)))
+      (if (null? value)
+          (if (assoc 'parent env)
+              (resolve-value expr (assoc 'parent env))
+              (else (error "EVAL - symbol has no bound value.")))
+          value))))
 
 (define lexer-expansion?
   (lambda (arg-list env)
@@ -176,4 +232,4 @@
     (scoped-procedure? apply-procedure)))
 
 
-(repl)
+(elan:repl)
