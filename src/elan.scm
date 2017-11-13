@@ -24,23 +24,55 @@
          (else (error "EVAL - could not evaluate atom")))
         (let* ((application (car expr))
                (args (cdr expr))
-               (special (special-form? application lexical-env applied-env))
-               (defined (defined-form? application lexical-env applied-env)))
-          (cond
-           ((value? special)
-            (apply-special-form special args lexical-env applied-env))
-           ((and (value? defined) (procedure? defined))
-            (apply-defined-form defined args lexical-env applied-env))
+               (fn (if (applicable? application lexical-env applied-env)
+                       application
+                       (elan:eval application lexical-env applied-env))))
+          (elan:apply fn args lexical-env applied-env))
            (else (error "EVAL  - could not evaluate list")))))))
 
 
-(define make-form
-  (lambda (name args-list named-args-list var-arg)
+(define elan:types '(elan:number elan:string elan:char
+                                 elan:symbol
+                                 elan:procdure elan:primitive elan:special-form))
+
+(define make-arity-alist
+  (lambda (args-list named-args-list var-arg)
     (list
-     (list 'name name)
      (list 'base-arity (length args-list))
      (list 'named-args named-args-list)
      (list 'var-arg var-arg))))
+
+(define make-variable
+  (lambda (type name value)
+    (if (memq type elan:types)
+        (list
+         (list 'type type)
+         (list 'name name)
+         (list 'value value)))))
+         
+
+(define make-template
+  (lambda (scaffold args-list named-args-list var-arg)
+    (let ((interpolate
+           (lambda (scaffold 
+
+     
+
+(define make-special-form
+  (lambda (name scaffold args-list named-args-list var-arg)
+    (make-variable 'elan:special
+                   name
+                   (make-template scaffold arg-list named-list var-arg)))
+
+(define applicable?
+  (lambda (expr lexical-env applied-env)
+    (if  (interned-symbol? expr lexical-env applied-env)
+         (let ((val (resolve-value (symbol->variable expr) lexical-env applied-env)))
+           (case (get-value-type val)
+             ('elan:special ())
+             ('elan:primitive ())
+             ('elan:procedure ())
+             (else #f))))))
 
 
 ;;; utility functions used to shortcut frequently used idioms
